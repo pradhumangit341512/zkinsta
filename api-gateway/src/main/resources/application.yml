@@ -1,0 +1,131 @@
+server:
+  port: 8080
+  max-http-request-header-size: 64KB
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      discovery:
+        service-name: api-gateway
+        instance-id: ${spring.application.name}:${random.value}
+        prefer-ip-address: true
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+      httpclient:
+        max-in-memory-size: 16777216
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-public
+          uri: lb://authentication-service
+          predicates:
+            - Path=/api/auth/register,/api/auth/login,/api/auth/forgot-password,/api/auth/reset-password,/api/auth/users/search,/api/auth/users/**,/api/auth/check-username/**,/api/auth/check-email/**
+
+        - id: auth-profile-public
+          uri: lb://authentication-service
+          predicates:
+            - Path=/api/auth/profile/{username}
+            - Method=GET
+
+        - id: auth-protected
+          uri: lb://authentication-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - JwtAuthenticationFilter
+
+        - id: media-serve
+          uri: lb://post-service
+          predicates:
+            - Path=/api/media/{id}
+            - Method=GET
+
+        - id: media-upload
+          uri: lb://post-service
+          predicates:
+            - Path=/api/media/**
+          filters:
+            - JwtAuthenticationFilter
+
+        - id: post-comments-public
+          uri: lb://post-service
+          predicates:
+            - Path=/api/posts/{postId}/comments
+            - Method=GET
+
+        - id: post-public
+          uri: lb://post-service
+          predicates:
+            - Path=/api/posts/public,/api/posts/trending,/api/posts/trending/recent,/api/posts/search,/api/posts/hashtag/**
+
+        - id: post-service
+          uri: lb://post-service
+          predicates:
+            - Path=/api/posts/**
+          filters:
+            - JwtAuthenticationFilter
+
+        - id: follow-service
+          uri: lb://follow-service
+          predicates:
+            - Path=/api/follows/**
+          filters:
+            - JwtAuthenticationFilter
+
+        - id: notification-service
+          uri: lb://follow-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - JwtAuthenticationFilter
+
+        - id: trending-service
+          uri: lb://trending-service
+          predicates:
+            - Path=/api/trending/**
+
+jwt:
+  secret: MySecretKeyForJWTTokenGeneration2024InstagramCloneApp
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gatewayCircuitBreaker:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 3
+        slow-call-duration-threshold: 3s
+  timelimiter:
+    instances:
+      gatewayCircuitBreaker:
+        timeout-duration: 3s
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.instagram.gateway: DEBUG

@@ -154,12 +154,11 @@ public class PostController {
     }
 
     @PostMapping("/{postId}/view")
-    @Operation(summary = "Record a video view")
-    public ResponseEntity<ApiResponse> recordVideoView(
+    @Operation(summary = "Record a post view")
+    public ResponseEntity<ApiResponse> recordView(
             @PathVariable Long postId,
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestParam(defaultValue = "0") Integer watchedDuration) {
-        PostDto post = postService.recordVideoView(postId, userId, watchedDuration);
+            @RequestHeader("X-User-Id") Long userId) {
+        PostDto post = postService.recordView(postId, userId);
         return ResponseEntity.ok(ApiResponse.success("View recorded successfully", post));
     }
 

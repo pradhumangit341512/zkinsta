@@ -177,22 +177,17 @@ public class PostService {
     }
 
     @Transactional
-    public PostDto recordVideoView(Long postId, Long userId, Integer watchedDuration) {
+    public PostDto recordView(Long postId, Long userId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException("Post not found", HttpStatus.NOT_FOUND));
 
-        if (post.getMediaType() != Post.MediaType.VIDEO) {
-            throw new CustomException("Post is not a video", HttpStatus.BAD_REQUEST);
-        }
-
-        // Prevent duplicate views within 5 minutes
         boolean recentView = videoViewRepository.existsByPostIdAndUserIdAndViewedAtAfter(
                 postId, userId, LocalDateTime.now().minusMinutes(5));
         if (!recentView) {
             VideoView view = VideoView.builder()
                     .postId(postId)
                     .userId(userId)
-                    .watchedDuration(watchedDuration != null ? watchedDuration : 0)
+                    .watchedDuration(0)
                     .build();
             videoViewRepository.save(view);
             post.setViewsCount(post.getViewsCount() + 1);

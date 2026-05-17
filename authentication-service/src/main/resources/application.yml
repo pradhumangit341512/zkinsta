@@ -55,6 +55,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
 logging:
   level:
     com.instagram.auth: DEBUG

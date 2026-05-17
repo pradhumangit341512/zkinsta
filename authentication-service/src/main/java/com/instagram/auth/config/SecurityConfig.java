@@ -59,7 +59,8 @@ public class SecurityConfig {
                         "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html",
                         "/api/auth/users/search", "/api/auth/users/**",
                         "/api/auth/profile/{username}",
-                        "/api/auth/check-username/**", "/api/auth/check-email/**").permitAll()
+                        "/api/auth/check-username/**", "/api/auth/check-email/**",
+                        "/actuator/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -70,7 +71,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:3001"));
+        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:3001", "http://localhost:3002"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

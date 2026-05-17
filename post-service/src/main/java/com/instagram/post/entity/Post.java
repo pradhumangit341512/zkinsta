@@ -22,8 +22,6 @@ public class Post {
     @Column(nullable = false)
     private Long userId;
 
-    private String username;
-
     @Column(length = 2000)
     private String caption;
 

@@ -25,8 +25,6 @@ public class Like {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    private String username;
-
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

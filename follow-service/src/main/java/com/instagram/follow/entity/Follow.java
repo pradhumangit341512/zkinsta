@@ -22,12 +22,8 @@ public class Follow {
     @Column(name = "follower_id", nullable = false)
     private Long followerId;
 
-    private String followerUsername;
-
     @Column(name = "following_id", nullable = false)
     private Long followingId;
-
-    private String followingUsername;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

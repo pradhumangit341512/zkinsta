@@ -29,7 +29,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("SELECT p FROM Post p JOIN p.hashtags h WHERE LOWER(h) = LOWER(:hashtag) AND p.privacy = 'PUBLIC' ORDER BY p.createdAt DESC")
     Page<Post> findByHashtag(@Param("hashtag") String hashtag, Pageable pageable);
 
-    @Query("SELECT p FROM Post p WHERE (LOWER(p.caption) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(p.username) LIKE LOWER(CONCAT('%', :query, '%'))) AND p.privacy = 'PUBLIC' ORDER BY p.createdAt DESC")
+    @Query("SELECT p FROM Post p WHERE LOWER(p.caption) LIKE LOWER(CONCAT('%', :query, '%')) AND p.privacy = 'PUBLIC' ORDER BY p.createdAt DESC")
     Page<Post> searchPosts(@Param("query") String query, Pageable pageable);
 
     List<Post> findByUserIdIn(List<Long> userIds);

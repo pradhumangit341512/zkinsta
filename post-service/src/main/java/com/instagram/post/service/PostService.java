@@ -20,9 +20,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,12 +37,46 @@ public class PostService {
     private final CommentRepository commentRepository;
     private final VideoViewRepository videoViewRepository;
     private final ModelMapper modelMapper;
+    private final WebClient.Builder webClientBuilder;
+
+    private String fetchUsername(Long userId) {
+        try {
+            Map<String, Object> response = webClientBuilder.build()
+                    .get()
+                    .uri("http://authentication-service/api/auth/users/{userId}", userId)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            if (response != null && response.get("data") != null) {
+                Map<String, Object> data = (Map<String, Object>) response.get("data");
+                return (String) data.get("username");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch username for userId {}: {}", userId, e.getMessage());
+        }
+        return "user_" + userId;
+    }
+
+    private void updateTrendingHashtags(List<String> hashtags) {
+        if (hashtags == null || hashtags.isEmpty()) return;
+        for (String hashtag : hashtags) {
+            try {
+                webClientBuilder.build()
+                        .post()
+                        .uri("http://trending-service/api/trending/hashtags/{hashtag}", hashtag)
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .block();
+            } catch (Exception e) {
+                log.warn("Failed to update trending hashtag {}: {}", hashtag, e.getMessage());
+            }
+        }
+    }
 
     @CircuitBreaker(name = "postService", fallbackMethod = "createPostFallback")
     public PostDto createPost(Long userId, String username, CreatePostRequest request) {
         Post post = Post.builder()
                 .userId(userId)
-                .username(username)
                 .caption(request.getCaption())
                 .mediaUrl(request.getMediaUrl())
                 .mediaType(request.getMediaType())
@@ -50,7 +86,11 @@ public class PostService {
                 .build();
 
         Post saved = postRepository.save(post);
-        return mapToDto(saved, userId);
+
+        // Update trending hashtags via WebClient
+        updateTrendingHashtags(saved.getHashtags());
+
+        return mapToDto(saved, userId, username);
     }
 
     public PostDto createPostFallback(Long userId, String username, CreatePostRequest request, Throwable t) {
@@ -62,25 +102,25 @@ public class PostService {
     public PostDto getPost(Long postId, Long currentUserId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException("Post not found", HttpStatus.NOT_FOUND));
-        return mapToDto(post, currentUserId);
+        return mapToDto(post, currentUserId, null);
     }
 
     public List<PostDto> getPostsByUser(Long userId, Long currentUserId) {
         return postRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(post -> mapToDto(post, currentUserId))
+                .map(post -> mapToDto(post, currentUserId, null))
                 .collect(Collectors.toList());
     }
 
     public Page<PostDto> getFeed(List<Long> followingIds, Long currentUserId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.findByUserIdInAndPrivacyOrderByCreatedAtDesc(followingIds, Post.Privacy.PUBLIC, pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getPublicFeed(Long currentUserId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.findByPrivacyOrderByCreatedAtDesc(Post.Privacy.PUBLIC, pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public PostDto updatePost(Long postId, Long userId, UpdatePostRequest request) {
@@ -97,7 +137,7 @@ public class PostService {
         if (request.getHashtags() != null) post.setHashtags(request.getHashtags());
 
         Post updated = postRepository.save(post);
-        return mapToDto(updated, userId);
+        return mapToDto(updated, userId, null);
     }
 
     @Transactional
@@ -126,14 +166,13 @@ public class PostService {
         Like like = Like.builder()
                 .postId(postId)
                 .userId(userId)
-                .username(username)
                 .build();
         likeRepository.save(like);
 
         post.setLikesCount(post.getLikesCount() + 1);
         postRepository.save(post);
 
-        return mapToDto(post, userId);
+        return mapToDto(post, userId, username);
     }
 
     @Transactional
@@ -148,32 +187,32 @@ public class PostService {
         post.setLikesCount(Math.max(0, post.getLikesCount() - 1));
         postRepository.save(post);
 
-        return mapToDto(post, userId);
+        return mapToDto(post, userId, null);
     }
 
     public Page<PostDto> getTrendingPosts(Long currentUserId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.findTrendingPosts(pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getTrendingPostsSince(Long currentUserId, int hours, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         return postRepository.findTrendingPostsSince(since, pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getPostsByHashtag(String hashtag, Long currentUserId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.findByHashtag(hashtag, pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> searchPosts(String query, Long currentUserId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.searchPosts(query, pageable)
-                .map(post -> mapToDto(post, currentUserId));
+                .map(post -> mapToDto(post, currentUserId, null));
     }
 
     @Transactional
@@ -193,7 +232,7 @@ public class PostService {
             post.setViewsCount(post.getViewsCount() + 1);
             postRepository.save(post);
         }
-        return mapToDto(post, userId);
+        return mapToDto(post, userId, null);
     }
 
     @Transactional
@@ -204,12 +243,13 @@ public class PostService {
         Comment comment = Comment.builder()
                 .postId(postId)
                 .userId(userId)
-                .username(username)
                 .text(request.getText())
                 .build();
 
         Comment saved = commentRepository.save(comment);
-        return modelMapper.map(saved, CommentDto.class);
+        CommentDto dto = modelMapper.map(saved, CommentDto.class);
+        dto.setUsername(username);
+        return dto;
     }
 
     public Page<CommentDto> getComments(Long postId, int page, int size) {
@@ -218,7 +258,11 @@ public class PostService {
         }
         Pageable pageable = PageRequest.of(page, size);
         return commentRepository.findByPostIdOrderByCreatedAtDesc(postId, pageable)
-                .map(c -> modelMapper.map(c, CommentDto.class));
+                .map(c -> {
+                    CommentDto dto = modelMapper.map(c, CommentDto.class);
+                    dto.setUsername(fetchUsername(c.getUserId()));
+                    return dto;
+                });
     }
 
     @Transactional
@@ -231,8 +275,10 @@ public class PostService {
         commentRepository.delete(comment);
     }
 
-    private PostDto mapToDto(Post post, Long currentUserId) {
+    private PostDto mapToDto(Post post, Long currentUserId, String knownUsername) {
         PostDto dto = modelMapper.map(post, PostDto.class);
+        // Set username: use known username (from header) or fetch via WebClient
+        dto.setUsername(knownUsername != null ? knownUsername : fetchUsername(post.getUserId()));
         dto.setCommentsCount(commentRepository.countByPostId(post.getId()));
         if (currentUserId != null) {
             dto.setLikedByCurrentUser(likeRepository.existsByPostIdAndUserId(post.getId(), currentUserId));

@@ -12,6 +12,4 @@ public class FollowRequest {
 
     @NotNull(message = "Please provide a valid following user ID")
     private Long followingId;
-
-    private String followingUsername;
 }

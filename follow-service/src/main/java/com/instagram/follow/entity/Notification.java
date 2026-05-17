@@ -20,8 +20,6 @@ public class Notification {
     @Column(nullable = false)
     private Long senderId;
 
-    private String senderUsername;
-
     @Column(nullable = false)
     private Long receiverId;
 

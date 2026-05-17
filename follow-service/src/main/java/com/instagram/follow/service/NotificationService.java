@@ -13,6 +13,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -21,11 +24,29 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final ModelMapper modelMapper;
+    private final WebClient.Builder webClientBuilder;
+
+    private String fetchUsername(Long userId) {
+        try {
+            Map<String, Object> response = webClientBuilder.build()
+                    .get()
+                    .uri("http://authentication-service/api/auth/users/{userId}", userId)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+            if (response != null && response.get("data") != null) {
+                Map<String, Object> data = (Map<String, Object>) response.get("data");
+                return (String) data.get("username");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch username for userId {}: {}", userId, e.getMessage());
+        }
+        return "user_" + userId;
+    }
 
     public NotificationDto createNotification(CreateNotificationRequest request) {
         Notification notification = Notification.builder()
                 .senderId(request.getSenderId())
-                .senderUsername(request.getSenderUsername())
                 .receiverId(request.getReceiverId())
                 .type(Notification.NotificationType.valueOf(request.getType()))
                 .message(request.getMessage())
@@ -33,12 +54,18 @@ public class NotificationService {
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        return modelMapper.map(saved, NotificationDto.class);
+        NotificationDto dto = modelMapper.map(saved, NotificationDto.class);
+        dto.setSenderUsername(fetchUsername(saved.getSenderId()));
+        return dto;
     }
 
     public Page<NotificationDto> getNotifications(Long userId, int page, int size) {
         return notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size))
-                .map(n -> modelMapper.map(n, NotificationDto.class));
+                .map(n -> {
+                    NotificationDto dto = modelMapper.map(n, NotificationDto.class);
+                    dto.setSenderUsername(fetchUsername(n.getSenderId()));
+                    return dto;
+                });
     }
 
     public long getUnreadCount(Long userId) {

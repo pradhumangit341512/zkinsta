@@ -13,8 +13,6 @@ public class CreateNotificationRequest {
     @NotNull
     private Long senderId;
 
-    private String senderUsername;
-
     @NotNull
     private Long receiverId;
 

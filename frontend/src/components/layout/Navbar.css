@@ -343,6 +343,7 @@
   position: sticky;
   top: 0;
   background: #000;
+  z-index: 1;
 }
 
 .notif-panel-header h3 {
@@ -368,10 +369,11 @@
 }
 
 .notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   padding: 12px 24px;
   cursor: pointer;
-  font-size: 14px;
-  color: #f5f5f5;
   transition: background 0.15s;
   border-bottom: 1px solid #1a1a1a;
 }
@@ -386,6 +388,38 @@
 
 .notif-item.unread:hover {
   background: #122540;
+}
+
+.notif-item-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.notif-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notif-item-message {
+  font-size: 14px;
+  color: #f5f5f5;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.notif-item-time {
+  font-size: 12px;
+  color: #a8a8a8;
 }
 
 /* ============ Mobile Bottom Bar ============ */
@@ -451,6 +485,17 @@
 
   .mobile-bottom-bar {
     display: flex;
+  }
+}
+
+/* Small mobile - search/notif panels full screen */
+@media (max-width: 767px) {
+  .search-panel,
+  .notif-panel {
+    left: 0;
+    width: 100%;
+    border-left: none;
+    border-right: none;
   }
 }
 

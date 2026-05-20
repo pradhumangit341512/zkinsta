@@ -103,6 +103,40 @@ const Navbar: React.FC = () => {
     navigate('/login');
   };
 
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'LIKE':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#ed4956" stroke="none">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        );
+      case 'COMMENT':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0095f6" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        );
+      case 'FOLLOW':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58c322" strokeWidth="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="8.5" cy="7" r="4" />
+            <line x1="20" y1="8" x2="20" y2="14" />
+            <line x1="23" y1="11" x2="17" y2="11" />
+          </svg>
+        );
+      default:
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a8a8a8" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        );
+    }
+  };
+
   const handleNotificationClick = async (notification: Notification) => {
     if (!notification.read) {
       try {
@@ -113,6 +147,13 @@ const Navbar: React.FC = () => {
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch {}
     }
+
+    // Navigate based on notification type
+    if (notification.type === 'FOLLOW' && notification.senderUsername) {
+      navigate(`/profile/${notification.senderUsername}`);
+    } else if ((notification.type === 'LIKE' || notification.type === 'COMMENT') && notification.senderUsername) {
+      navigate(`/profile/${notification.senderUsername}`);
+    }
     setShowNotifications(false);
   };
 
@@ -122,6 +163,18 @@ const Navbar: React.FC = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch {}
+  };
+
+  const timeAgo = (date: string) => {
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d`;
+    return `${Math.floor(days / 7)}w`;
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -275,7 +328,13 @@ const Navbar: React.FC = () => {
                           className={`notif-item${n.read ? '' : ' unread'}`}
                           onClick={() => handleNotificationClick(n)}
                         >
-                          <span>{n.message}</span>
+                          <div className="notif-item-icon">
+                            {getNotificationIcon(n.type)}
+                          </div>
+                          <div className="notif-item-content">
+                            <span className="notif-item-message">{n.message}</span>
+                            <span className="notif-item-time">{timeAgo(n.createdAt)}</span>
+                          </div>
                         </div>
                       ))
                     )}

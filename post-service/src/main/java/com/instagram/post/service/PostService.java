@@ -73,6 +73,28 @@ public class PostService {
         }
     }
 
+    private void sendNotification(Long senderId, Long receiverId, String type, String message, Long referenceId) {
+        if (senderId.equals(receiverId)) return;
+        try {
+            Map<String, Object> body = Map.of(
+                    "senderId", senderId,
+                    "receiverId", receiverId,
+                    "type", type,
+                    "message", message,
+                    "referenceId", referenceId
+            );
+            webClientBuilder.build()
+                    .post()
+                    .uri("http://follow-service/api/notifications")
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+        } catch (Exception e) {
+            log.warn("Failed to send {} notification: {}", type, e.getMessage());
+        }
+    }
+
     @CircuitBreaker(name = "postService", fallbackMethod = "createPostFallback")
     public PostDto createPost(Long userId, String username, CreatePostRequest request) {
         Post post = Post.builder()
@@ -172,6 +194,10 @@ public class PostService {
         post.setLikesCount(post.getLikesCount() + 1);
         postRepository.save(post);
 
+        // Send LIKE notification to post owner
+        sendNotification(userId, post.getUserId(), "LIKE",
+                username + " liked your post", postId);
+
         return mapToDto(post, userId, username);
     }
 
@@ -247,6 +273,12 @@ public class PostService {
                 .build();
 
         Comment saved = commentRepository.save(comment);
+
+        // Send COMMENT notification to post owner
+        sendNotification(userId, post.getUserId(), "COMMENT",
+                username + " commented on your post: " + request.getText().substring(0, Math.min(request.getText().length(), 50)),
+                postId);
+
         CommentDto dto = modelMapper.map(saved, CommentDto.class);
         dto.setUsername(username);
         return dto;

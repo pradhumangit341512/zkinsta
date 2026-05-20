@@ -1,6 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import Cropper, { Area } from 'react-easy-crop';
-import { getCroppedImg, CroppedArea } from './cropUtils';
+import React, { useState, useRef } from 'react';
+import { getCroppedImg } from './cropUtils';
 import './MediaEditor.css';
 
 interface FilterPreset {
@@ -36,11 +35,9 @@ interface MediaEditorProps {
 }
 
 const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel }) => {
-  const [activeTab, setActiveTab] = useState<'crop' | 'adjust' | 'filters'>('filters');
+  const [activeTab, setActiveTab] = useState<'adjust' | 'filters'>('filters');
   const [saveError, setSaveError] = useState('');
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<CroppedArea | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Adjustments
   const [brightness, setBrightness] = useState(100);
@@ -50,15 +47,12 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
   // Active filter
   const [activeFilter, setActiveFilter] = useState<FilterPreset>(FILTER_PRESETS[0]);
 
-  const onCropComplete = useCallback((_: Area, croppedPixels: CroppedArea) => {
-    setCroppedAreaPixels(croppedPixels);
-  }, []);
+  const getFilterString = (f: FilterPreset, b: number = brightness, c: number = contrast, s: number = saturate): string => {
+    return `brightness(${(b / 100) * (f.brightness / 100) * 100}%) contrast(${(c / 100) * (f.contrast / 100) * 100}%) saturate(${(s / 100) * (f.saturate / 100) * 100}%) sepia(${f.sepia}%) grayscale(${f.grayscale}%) hue-rotate(${f.hueRotate}deg)`;
+  };
 
   const getPreviewStyle = (): React.CSSProperties => {
-    const f = activeFilter;
-    return {
-      filter: `brightness(${(brightness / 100) * (f.brightness / 100) * 100}%) contrast(${(contrast / 100) * (f.contrast / 100) * 100}%) saturate(${(saturate / 100) * (f.saturate / 100) * 100}%) sepia(${f.sepia}%) grayscale(${f.grayscale}%) hue-rotate(${f.hueRotate}deg)`,
-    };
+    return { filter: getFilterString(activeFilter) };
   };
 
   const handleSave = async () => {
@@ -69,19 +63,21 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
       const finalContrast = Math.round((contrast / 100) * (f.contrast / 100) * 100);
       const finalSaturate = Math.round((saturate / 100) * (f.saturate / 100) * 100);
 
-      if (croppedAreaPixels) {
+      // Load image to get dimensions for full-image crop
+      const img = imgRef.current;
+      if (img && img.naturalWidth) {
         const croppedImage = await getCroppedImg(
-          imageUrl, croppedAreaPixels,
+          imageUrl,
+          { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight },
           finalBrightness, finalContrast, finalSaturate,
           f.sepia, f.grayscale, f.hueRotate
         );
         onSave(croppedImage, activeFilter.name);
       } else {
-        // No crop, just apply filters via CSS (store filter name)
         onSave(imageUrl, activeFilter.name);
       }
     } catch (err) {
-      setSaveError('Failed to apply edits. Check image URL or try again.');
+      setSaveError('Failed to apply edits. Try again.');
       console.error('Failed to process image', err);
     }
   };
@@ -91,8 +87,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
     setContrast(100);
     setSaturate(100);
     setActiveFilter(FILTER_PRESETS[0]);
-    setZoom(1);
-    setCrop({ x: 0, y: 0 });
   };
 
   return (
@@ -106,34 +100,9 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
       {saveError && <div className="auth-error" style={{ margin: '8px 16px' }}>{saveError}</div>}
 
       <div className="editor-canvas">
-        {activeTab === 'crop' ? (
-          <div className="crop-container">
-            <Cropper
-              image={imageUrl}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-              style={{
-                mediaStyle: getPreviewStyle(),
-              }}
-            />
-            <div className="zoom-control">
-              <label>Zoom</label>
-              <input
-                type="range" min={1} max={3} step={0.1}
-                value={zoom}
-                onChange={(e) => setZoom(Number(e.target.value))}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="preview-container">
-            <img src={imageUrl} alt="Preview" style={getPreviewStyle()} />
-          </div>
-        )}
+        <div className="preview-container">
+          <img ref={imgRef} src={imageUrl} alt="Preview" style={getPreviewStyle()} />
+        </div>
       </div>
 
       <div className="editor-tabs">
@@ -142,9 +111,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
         </button>
         <button className={activeTab === 'adjust' ? 'active' : ''} onClick={() => setActiveTab('adjust')}>
           Adjust
-        </button>
-        <button className={activeTab === 'crop' ? 'active' : ''} onClick={() => setActiveTab('crop')}>
-          Crop
         </button>
         <button className="reset-btn" onClick={handleReset}>Reset</button>
       </div>
@@ -190,12 +156,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({ imageUrl, onSave, onCancel })
               <input type="range" min={0} max={200} value={saturate}
                 onChange={(e) => setSaturate(Number(e.target.value))} />
             </div>
-          </div>
-        )}
-
-        {activeTab === 'crop' && (
-          <div className="crop-info">
-            <p>Drag to reposition. Use the slider or pinch to zoom.</p>
           </div>
         )}
       </div>

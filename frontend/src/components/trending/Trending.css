@@ -5,6 +5,8 @@
   padding: 24px 16px;
   display: flex;
   gap: 32px;
+  min-height: 100vh;
+  background: #000;
 }
 
 .trending-sidebar {

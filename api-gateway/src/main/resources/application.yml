@@ -126,6 +126,15 @@ resilience4j:
       gatewayCircuitBreaker:
         timeout-duration: 3s
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG

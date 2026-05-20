@@ -3,6 +3,8 @@
   max-width: 630px;
   margin: 0 auto;
   padding: 24px 16px;
+  min-height: 100vh;
+  background: #000;
 }
 
 .search-title {

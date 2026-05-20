@@ -3,6 +3,8 @@
   max-width: 630px;
   margin: 0 auto;
   padding: 0;
+  min-height: 100vh;
+  background: #000;
 }
 
 .feed-content {
@@ -303,6 +305,8 @@
   max-width: 630px;
   margin: 0 auto;
   padding: 20px 16px;
+  min-height: 100vh;
+  background: #000;
 }
 
 .create-post-card {

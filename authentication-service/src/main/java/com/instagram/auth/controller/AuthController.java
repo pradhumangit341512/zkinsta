@@ -62,8 +62,9 @@ public class AuthController {
     @PostMapping("/forgot-password")
     @Operation(summary = "Request password reset")
     public ResponseEntity<ApiResponse> forgotPassword(@Valid @RequestBody PasswordResetRequest request) {
-        String token = authService.forgotPassword(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.success("Password reset token generated", token));
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.success(
+                "If an account exists with this email, a password reset link has been sent.", null));
     }
 
     @PostMapping("/reset-password")
@@ -91,17 +92,13 @@ public class AuthController {
     @Operation(summary = "Check if username is available")
     public ResponseEntity<ApiResponse> checkUsername(@PathVariable String username) {
         boolean available = !userRepository.existsByUsername(username);
-        return ResponseEntity.ok(ApiResponse.success(
-                available ? "Username is available" : "Username is already taken",
-                available));
+        return ResponseEntity.ok(ApiResponse.success("Availability checked", available));
     }
 
     @GetMapping("/check-email/{email}")
     @Operation(summary = "Check if email is available")
     public ResponseEntity<ApiResponse> checkEmail(@PathVariable String email) {
         boolean available = !userRepository.existsByEmail(email);
-        return ResponseEntity.ok(ApiResponse.success(
-                available ? "Email is available" : "Email is already registered",
-                available));
+        return ResponseEntity.ok(ApiResponse.success("Availability checked", available));
     }
 }

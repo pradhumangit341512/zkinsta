@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +26,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final ModelMapper modelMapper;
+
+    private static String sanitizeLogInput(String input) {
+        if (input == null) return "null";
+        return input.replaceAll("[\\r\\n\\t]", "_");
+    }
 
     @CircuitBreaker(name = "authService", fallbackMethod = "registerFallback")
     public AuthResponse register(RegisterRequest request) {
@@ -59,10 +63,10 @@ public class AuthService {
     }
 
     public AuthResponse registerFallback(RegisterRequest request, Throwable t) {
-        if (t instanceof CustomException) {
-            throw (CustomException) t;
+        if (t instanceof CustomException customException) {
+            throw customException;
         }
-        log.error("Circuit breaker fallback for register: {}", t.getMessage());
+        log.error("Circuit breaker fallback for register: {}", sanitizeLogInput(t.getMessage()));
         throw new CustomException("Service is temporarily unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -86,10 +90,10 @@ public class AuthService {
     }
 
     public AuthResponse loginFallback(LoginRequest request, Throwable t) {
-        if (t instanceof CustomException) {
-            throw (CustomException) t;
+        if (t instanceof CustomException customException) {
+            throw customException;
         }
-        log.error("Circuit breaker fallback for login: {}", t.getMessage());
+        log.error("Circuit breaker fallback for login: {}", sanitizeLogInput(t.getMessage()));
         throw new CustomException(
                 "Too many failed login attempts. Please wait for 1 minute before trying again.",
                 HttpStatus.SERVICE_UNAVAILABLE);
@@ -119,17 +123,14 @@ public class AuthService {
         return modelMapper.map(user, UserProfileDto.class);
     }
 
-    public String forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomException("No account found with this email", HttpStatus.NOT_FOUND));
-
-        String token = UUID.randomUUID().toString();
-        user.setPasswordResetToken(token);
-        user.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
-        userRepository.save(user);
-
-        log.info("Password reset token generated for user: {}", user.getUsername());
-        return token;
+    public void forgotPassword(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            user.setPasswordResetToken(token);
+            user.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
+            userRepository.save(user);
+            log.info("Password reset token generated for user: {}", sanitizeLogInput(user.getUsername()));
+        });
     }
 
     public String resetPassword(ResetPasswordConfirm request) {
@@ -156,7 +157,7 @@ public class AuthService {
         return userRepository.findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(query, query)
                 .stream()
                 .map(user -> modelMapper.map(user, UserProfileDto.class))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public UserProfileDto getUserById(Long userId) {

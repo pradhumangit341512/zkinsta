@@ -44,8 +44,8 @@ const Profile: React.FC = () => {
         const followRes = await followService.isFollowing(user.id);
         setIsFollowing(followRes.data.data);
       }
-    } catch (err) {
-      console.error('Failed to load profile', err);
+    } catch {
+      // Profile loading failed silently - UI shows fallback
     } finally {
       setLoading(false);
     }

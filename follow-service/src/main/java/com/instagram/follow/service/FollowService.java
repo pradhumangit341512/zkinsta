@@ -8,13 +8,13 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,20 +26,30 @@ public class FollowService {
     private final ModelMapper modelMapper;
     private final WebClient.Builder webClientBuilder;
 
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    private static String sanitizeLogInput(String input) {
+        if (input == null) return "null";
+        return input.replaceAll("[\\r\\n\\t]", "_");
+    }
+
     private String fetchUsername(Long userId) {
         try {
             Map<String, Object> response = webClientBuilder.build()
                     .get()
                     .uri("http://authentication-service/api/auth/users/{userId}", userId)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_TYPE)
                     .block();
-            if (response != null && response.get("data") != null) {
-                Map<String, Object> data = (Map<String, Object>) response.get("data");
-                return (String) data.get("username");
+            if (response != null && response.get("data") instanceof Map<?, ?> data) {
+                Object username = data.get("username");
+                if (username instanceof String usernameStr) {
+                    return usernameStr;
+                }
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch username for userId {}: {}", userId, e.getMessage());
+            log.warn("Failed to fetch username for userId {}: {}", userId, sanitizeLogInput(e.getMessage()));
         }
         return "user_" + userId;
     }
@@ -61,10 +71,8 @@ public class FollowService {
 
         Follow saved = followRepository.save(follow);
 
-        // Fetch following username via WebClient
         String followingUsername = fetchUsername(request.getFollowingId());
 
-        // Create follow notification
         try {
             notificationService.createNotification(CreateNotificationRequest.builder()
                     .senderId(followerId)
@@ -74,7 +82,7 @@ public class FollowService {
                     .referenceId(saved.getId())
                     .build());
         } catch (Exception e) {
-            log.warn("Failed to create follow notification: {}", e.getMessage());
+            log.warn("Failed to create follow notification: {}", sanitizeLogInput(e.getMessage()));
         }
 
         FollowDto dto = modelMapper.map(saved, FollowDto.class);
@@ -84,8 +92,8 @@ public class FollowService {
     }
 
     public FollowDto followUserFallback(Long followerId, String followerUsername, FollowRequest request, Throwable t) {
-        if (t instanceof CustomException) throw (CustomException) t;
-        log.error("Circuit breaker fallback for followUser: {}", t.getMessage());
+        if (t instanceof CustomException customException) throw customException;
+        log.error("Circuit breaker fallback for followUser: {}", sanitizeLogInput(t.getMessage()));
         throw new CustomException("Service temporarily unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -103,7 +111,7 @@ public class FollowService {
                     dto.setFollowingUsername(fetchUsername(follow.getFollowingId()));
                     return dto;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<FollowDto> getFollowing(Long userId) {
@@ -114,7 +122,7 @@ public class FollowService {
                     dto.setFollowingUsername(fetchUsername(follow.getFollowingId()));
                     return dto;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public FollowCountDto getFollowCounts(Long userId) {
@@ -134,6 +142,6 @@ public class FollowService {
     public List<Long> getFollowingIds(Long userId) {
         return followRepository.findByFollowerId(userId).stream()
                 .map(Follow::getFollowingId)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

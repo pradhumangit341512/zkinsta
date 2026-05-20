@@ -39,14 +39,15 @@ const Login: React.FC = () => {
       const data = res.data.data;
       await login(data.token);
       navigate('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
       if (newAttempts >= 3) {
         setLockoutTimer(60);
         setError('Too many failed login attempts. Please wait for 1 minute before trying again.');
       } else {
-        setError(err.response?.data?.message || 'Invalid username or password');
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        setError(axiosErr.response?.data?.message || 'Invalid username or password');
       }
     }
   };

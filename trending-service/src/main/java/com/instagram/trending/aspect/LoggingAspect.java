@@ -19,7 +19,7 @@ public class LoggingAspect {
             log.info("Exiting method: {}", methodName);
             return result;
         } catch (Exception e) {
-            log.error("Exception in method: {} - {}", methodName, e.getMessage());
+            log.error("Exception in method: {} - {}", methodName, e.getClass().getSimpleName());
             throw e;
         }
     }

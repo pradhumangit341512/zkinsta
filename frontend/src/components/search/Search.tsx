@@ -34,8 +34,8 @@ const Search: React.FC = () => {
           const res = await postService.getPostsByHashtag(hashtag);
           setPosts(res.data.data?.content || []);
         }
-      } catch (err) {
-        console.error('Search failed', err);
+      } catch {
+        // Search failed silently - UI shows empty state
       } finally {
         setLoading(false);
       }

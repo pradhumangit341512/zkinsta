@@ -19,8 +19,8 @@ const HomeFeed: React.FC = () => {
         setPosts((prev) => pageNum === 0 ? data.content : [...prev, ...data.content]);
         setHasMore(data.number < data.totalPages - 1);
       }
-    } catch (err) {
-      console.error('Failed to load feed', err);
+    } catch {
+      // Feed loading failed silently - UI shows empty state
     } finally {
       setLoading(false);
     }

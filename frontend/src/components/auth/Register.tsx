@@ -79,8 +79,9 @@ const Register: React.FC = () => {
       const data = res.data.data;
       await login(data.token);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message || 'Registration failed');
     }
   };
 

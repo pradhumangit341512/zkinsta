@@ -99,9 +99,10 @@ const CreatePost: React.FC = () => {
       });
       setSuccess('Post published successfully!');
       setTimeout(() => navigate('/'), 1500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUploadProgress('');
-      setError(err.response?.data?.message || 'Failed to create post');
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message || 'Failed to create post');
     } finally {
       setSubmitting(false);
     }

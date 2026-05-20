@@ -16,12 +16,12 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault();
     setError('');
     try {
-      const res = await authService.forgotPassword(email);
-      setToken(res.data.data);
-      setMessage('Password reset token generated. Use it below to reset your password.');
+      await authService.forgotPassword(email);
+      setMessage('If an account exists with this email, a password reset link has been sent. Enter your reset token below.');
       setStep('reset');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send reset request');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message || 'Failed to send reset request');
     }
   };
 
@@ -35,8 +35,9 @@ const ForgotPassword: React.FC = () => {
     try {
       await authService.resetPassword({ token, newPassword, confirmPassword });
       setStep('done');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Password reset failed');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message || 'Password reset failed');
     }
   };
 

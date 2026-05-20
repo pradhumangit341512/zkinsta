@@ -8,6 +8,7 @@ import com.instagram.follow.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -26,20 +27,30 @@ public class NotificationService {
     private final ModelMapper modelMapper;
     private final WebClient.Builder webClientBuilder;
 
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    private static String sanitizeLogInput(String input) {
+        if (input == null) return "null";
+        return input.replaceAll("[\\r\\n\\t]", "_");
+    }
+
     private String fetchUsername(Long userId) {
         try {
             Map<String, Object> response = webClientBuilder.build()
                     .get()
                     .uri("http://authentication-service/api/auth/users/{userId}", userId)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_TYPE)
                     .block();
-            if (response != null && response.get("data") != null) {
-                Map<String, Object> data = (Map<String, Object>) response.get("data");
-                return (String) data.get("username");
+            if (response != null && response.get("data") instanceof Map<?, ?> data) {
+                Object username = data.get("username");
+                if (username instanceof String usernameStr) {
+                    return usernameStr;
+                }
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch username for userId {}: {}", userId, e.getMessage());
+            log.warn("Failed to fetch username for userId {}: {}", userId, sanitizeLogInput(e.getMessage()));
         }
         return "user_" + userId;
     }
@@ -60,7 +71,7 @@ public class NotificationService {
     }
 
     public Page<NotificationDto> getNotifications(Long userId, int page, int size) {
-        return notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size))
+        return notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId, PageRequest.of(page, Math.min(size, 100)))
                 .map(n -> {
                     NotificationDto dto = modelMapper.map(n, NotificationDto.class);
                     dto.setSenderUsername(fetchUsername(n.getSenderId()));

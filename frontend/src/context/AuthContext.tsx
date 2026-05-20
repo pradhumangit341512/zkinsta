@@ -23,8 +23,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const res = await authService.getProfile();
       setUser(res.data.data);
-    } catch (err: any) {
-      if (err.response?.status === 401 || err.response?.status === 403) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr.response?.status === 401 || axiosErr.response?.status === 403) {
         logout();
       }
     }

@@ -67,7 +67,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
                 return chain.filter(exchange.mutate().request(modifiedRequest).build());
             } catch (Exception e) {
-                log.error("JWT validation error: {}", e.getMessage());
+                log.error("JWT validation error: {}", e.getClass().getSimpleName());
                 return onError(exchange, "Invalid or expired token", HttpStatus.UNAUTHORIZED);
             }
         };

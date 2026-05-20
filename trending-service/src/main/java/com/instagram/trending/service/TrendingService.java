@@ -8,11 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,15 +20,20 @@ public class TrendingService {
     private final TrendingHashtagRepository trendingHashtagRepository;
     private final ModelMapper modelMapper;
 
+    private static String sanitizeLogInput(String input) {
+        if (input == null) return "null";
+        return input.replaceAll("[\\r\\n\\t]", "_");
+    }
+
     @CircuitBreaker(name = "trendingService", fallbackMethod = "getTrendingHashtagsFallback")
     public List<TrendingHashtagDto> getTrendingHashtags(int limit) {
-        return trendingHashtagRepository.findTopTrending(PageRequest.of(0, limit)).stream()
+        return trendingHashtagRepository.findTopTrending(PageRequest.of(0, Math.min(limit, 100))).stream()
                 .map(h -> modelMapper.map(h, TrendingHashtagDto.class))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<TrendingHashtagDto> getTrendingHashtagsFallback(int limit, Throwable t) {
-        log.error("Circuit breaker fallback for getTrendingHashtags: {}", t.getMessage());
+        log.error("Circuit breaker fallback for getTrendingHashtags: {}", sanitizeLogInput(t.getMessage()));
         return List.of();
     }
 
@@ -53,6 +56,6 @@ public class TrendingService {
     public List<TrendingHashtagDto> searchHashtags(String query) {
         return trendingHashtagRepository.findByHashtagContainingIgnoreCase(query).stream()
                 .map(h -> modelMapper.map(h, TrendingHashtagDto.class))
-                .collect(Collectors.toList());
+                .toList();
     }
 }

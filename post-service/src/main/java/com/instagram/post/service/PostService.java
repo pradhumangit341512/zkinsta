@@ -14,6 +14,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,7 +26,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,20 +39,31 @@ public class PostService {
     private final ModelMapper modelMapper;
     private final WebClient.Builder webClientBuilder;
 
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    private static String sanitizeLogInput(String input) {
+        if (input == null) return "null";
+        return input.replaceAll("[\\r\\n\\t]", "_");
+    }
+
+    @SuppressWarnings("unchecked")
     private String fetchUsername(Long userId) {
         try {
             Map<String, Object> response = webClientBuilder.build()
                     .get()
                     .uri("http://authentication-service/api/auth/users/{userId}", userId)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_TYPE)
                     .block();
-            if (response != null && response.get("data") != null) {
-                Map<String, Object> data = (Map<String, Object>) response.get("data");
-                return (String) data.get("username");
+            if (response != null && response.get("data") instanceof Map<?, ?> data) {
+                Object username = data.get("username");
+                if (username instanceof String usernameStr) {
+                    return usernameStr;
+                }
             }
         } catch (Exception e) {
-            log.warn("Failed to fetch username for userId {}: {}", userId, e.getMessage());
+            log.warn("Failed to fetch username for userId {}: {}", userId, sanitizeLogInput(e.getMessage()));
         }
         return "user_" + userId;
     }
@@ -65,10 +76,10 @@ public class PostService {
                         .post()
                         .uri("http://trending-service/api/trending/hashtags/{hashtag}", hashtag)
                         .retrieve()
-                        .bodyToMono(Map.class)
+                        .bodyToMono(MAP_TYPE)
                         .block();
             } catch (Exception e) {
-                log.warn("Failed to update trending hashtag {}: {}", hashtag, e.getMessage());
+                log.warn("Failed to update trending hashtag {}: {}", sanitizeLogInput(hashtag), sanitizeLogInput(e.getMessage()));
             }
         }
     }
@@ -88,10 +99,10 @@ public class PostService {
                     .uri("http://follow-service/api/notifications")
                     .bodyValue(body)
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(MAP_TYPE)
                     .block();
         } catch (Exception e) {
-            log.warn("Failed to send {} notification: {}", type, e.getMessage());
+            log.warn("Failed to send {} notification: {}", sanitizeLogInput(type), sanitizeLogInput(e.getMessage()));
         }
     }
 
@@ -109,15 +120,14 @@ public class PostService {
 
         Post saved = postRepository.save(post);
 
-        // Update trending hashtags via WebClient
         updateTrendingHashtags(saved.getHashtags());
 
         return mapToDto(saved, userId, username);
     }
 
     public PostDto createPostFallback(Long userId, String username, CreatePostRequest request, Throwable t) {
-        if (t instanceof CustomException) throw (CustomException) t;
-        log.error("Circuit breaker fallback for createPost: {}", t.getMessage());
+        if (t instanceof CustomException customException) throw customException;
+        log.error("Circuit breaker fallback for createPost: {}", sanitizeLogInput(t.getMessage()));
         throw new CustomException("Service temporarily unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -130,17 +140,17 @@ public class PostService {
     public List<PostDto> getPostsByUser(Long userId, Long currentUserId) {
         return postRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(post -> mapToDto(post, currentUserId, null))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public Page<PostDto> getFeed(List<Long> followingIds, Long currentUserId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return postRepository.findByUserIdInAndPrivacyOrderByCreatedAtDesc(followingIds, Post.Privacy.PUBLIC, pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getPublicFeed(Long currentUserId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return postRepository.findByPrivacyOrderByCreatedAtDesc(Post.Privacy.PUBLIC, pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
@@ -194,9 +204,8 @@ public class PostService {
         post.setLikesCount(post.getLikesCount() + 1);
         postRepository.save(post);
 
-        // Send LIKE notification to post owner
         sendNotification(userId, post.getUserId(), "LIKE",
-                username + " liked your post", postId);
+                sanitizeLogInput(username) + " liked your post", postId);
 
         return mapToDto(post, userId, username);
     }
@@ -217,26 +226,26 @@ public class PostService {
     }
 
     public Page<PostDto> getTrendingPosts(Long currentUserId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return postRepository.findTrendingPosts(pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getTrendingPostsSince(Long currentUserId, int hours, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         return postRepository.findTrendingPostsSince(since, pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> getPostsByHashtag(String hashtag, Long currentUserId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return postRepository.findByHashtag(hashtag, pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
 
     public Page<PostDto> searchPosts(String query, Long currentUserId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return postRepository.searchPosts(query, pageable)
                 .map(post -> mapToDto(post, currentUserId, null));
     }
@@ -274,9 +283,9 @@ public class PostService {
 
         Comment saved = commentRepository.save(comment);
 
-        // Send COMMENT notification to post owner
+        String truncatedText = request.getText().substring(0, Math.min(request.getText().length(), 50));
         sendNotification(userId, post.getUserId(), "COMMENT",
-                username + " commented on your post: " + request.getText().substring(0, Math.min(request.getText().length(), 50)),
+                sanitizeLogInput(username) + " commented on your post: " + truncatedText,
                 postId);
 
         CommentDto dto = modelMapper.map(saved, CommentDto.class);
@@ -288,7 +297,7 @@ public class PostService {
         if (!postRepository.existsById(postId)) {
             throw new CustomException("Post not found", HttpStatus.NOT_FOUND);
         }
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return commentRepository.findByPostIdOrderByCreatedAtDesc(postId, pageable)
                 .map(c -> {
                     CommentDto dto = modelMapper.map(c, CommentDto.class);
@@ -309,7 +318,6 @@ public class PostService {
 
     private PostDto mapToDto(Post post, Long currentUserId, String knownUsername) {
         PostDto dto = modelMapper.map(post, PostDto.class);
-        // Set username: use known username (from header) or fetch via WebClient
         dto.setUsername(knownUsername != null ? knownUsername : fetchUsername(post.getUserId()));
         dto.setCommentsCount(commentRepository.countByPostId(post.getId()));
         if (currentUserId != null) {

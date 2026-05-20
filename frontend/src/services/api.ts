@@ -29,6 +29,7 @@ api.interceptors.response.use(
 
 export const getMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
+  if (url.startsWith('javascript:') || url.startsWith('data:')) return '';
   if (url.startsWith('http')) return url;
   return `${API_BASE}${url}`;
 };

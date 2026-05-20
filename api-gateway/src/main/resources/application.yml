@@ -27,7 +27,13 @@ spring:
               - PUT
               - DELETE
               - OPTIONS
-            allowedHeaders: "*"
+            allowedHeaders:
+              - "Authorization"
+              - "Content-Type"
+              - "X-User-Id"
+              - "X-Username"
+              - "Accept"
+              - "Origin"
             allowCredentials: true
             maxAge: 3600
       httpclient:
@@ -133,7 +139,7 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
 
 logging:
   level:

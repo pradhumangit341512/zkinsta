@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -47,9 +48,18 @@ public class MediaController {
         }
 
         try {
+            String originalFilename = file.getOriginalFilename();
+            String safeFilename = UUID.randomUUID().toString();
+            if (originalFilename != null && originalFilename.contains(".")) {
+                String ext = originalFilename.substring(originalFilename.lastIndexOf('.'));
+                if (ext.matches("\\.[a-zA-Z0-9]{1,5}")) {
+                    safeFilename += ext;
+                }
+            }
+
             MediaFile mediaFile = MediaFile.builder()
                     .contentType(contentType)
-                    .filename(file.getOriginalFilename())
+                    .filename(safeFilename)
                     .data(file.getBytes())
                     .userId(userId)
                     .build();

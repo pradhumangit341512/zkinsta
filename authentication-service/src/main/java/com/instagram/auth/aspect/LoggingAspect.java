@@ -1,7 +1,6 @@
 package com.instagram.auth.aspect;
 
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 import org.springframework.stereotype.Component;
@@ -26,7 +25,7 @@ public class LoggingAspect {
             log.info("Exiting method: {}", methodName);
             return result;
         } catch (Exception e) {
-            log.error("Exception in method: {} - {}", methodName, e.getMessage());
+            log.error("Exception in method: {} - {}", methodName, e.getClass().getSimpleName());
             throw e;
         }
     }

@@ -23,8 +23,8 @@ const Trending: React.FC = () => {
       ]);
       setTrendingPosts(postsRes.data.data?.content || []);
       setTrendingHashtags(hashtagsRes.data.data || []);
-    } catch (err) {
-      console.error('Failed to load trending', err);
+    } catch {
+      // Trending loading failed silently - UI shows empty state
     } finally {
       setLoading(false);
     }
